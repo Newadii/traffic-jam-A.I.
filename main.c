@@ -4,6 +4,7 @@
 #include <memory.h>
 
 #define MAP_SIZE (6 +2)
+#define MAX_MOVE 4
 #define MAX_DEPTH 256
 
 int c_count;
@@ -127,9 +128,9 @@ void print_state(car *cars)
     }
 }
 
-int check_move_car(car *state, car *inspect_car, int direction)
+int check_move_car(car *inspect_car, int direction, int **map)
 {
-    int **map = make_map(state);
+
     int to_x = 0, to_y = 0;
     int *to_ptr;
 
@@ -141,9 +142,9 @@ int check_move_car(car *state, car *inspect_car, int direction)
         to_ptr = &to_y;
 
     if (direction > 0)
-        *to_ptr = inspect_car->size;
+        *to_ptr = inspect_car->size + direction - 1;
     else
-        *to_ptr = -1;
+        *to_ptr = direction;
 
     if (map[inspect_car->x_pos + to_x][inspect_car->y_pos + to_y] == -1)
     {
@@ -151,10 +152,8 @@ int check_move_car(car *state, car *inspect_car, int direction)
             inspect_car->x_pos += direction;
         else
             inspect_car->y_pos += direction;
-        delete_map(map);
         return 1;
     }
-    delete_map(map);
     return 0;
 }
 
@@ -173,30 +172,60 @@ int solve(car *this_state, int depth)
     if (depth < 1)
         return 0;
 
+    int **map = make_map(this_state);
     car *next_state = malloc(c_count * sizeof(car));
     memcpy(next_state, this_state, c_count * sizeof(car));
 
     for (int i=0; i < c_count; i++)
     {
-        char direction[2] = {-1, 1};
-        for (int k=0; k<2; k++)
+        int direction;
+        for (direction = 1; direction <= MAX_MOVE; direction++)
         {
-            if (check_move_car(next_state, &next_state[i], direction[k]))
+            if (check_move_car(&next_state[i], direction, map))
             {
                 if (solve(next_state, depth - 1))
                 {
                     solution[depth -1].car_index = i;
                     solution[depth -1].state = this_state[i];
-                    solution[depth -1].direction = direction[k];
+                    solution[depth -1].direction = direction;
                     free(next_state);
                     return 1;
                 }
-                move_car(&next_state[i], direction[k] * (-1));
-            }
+                move_car(&next_state[i], direction * (-1));
+            } else
+                break;
+        }
+        for (direction = -1; direction >= -(MAX_MOVE); direction--)
+        {
+            if (check_move_car(&next_state[i], direction, map))
+            {
+                if (solve(next_state, depth - 1))
+                {
+                    solution[depth -1].car_index = i;
+                    solution[depth -1].state = this_state[i];
+                    solution[depth -1].direction = direction;
+                    free(next_state);
+                    return 1;
+                }
+                move_car(&next_state[i], direction * (-1));
+            } else
+                break;
         }
     }
+    delete_map(map);
     free(next_state);
     return 0;
+}
+
+car *prioritize(car *this_state)
+{
+    car *new_state = calloc(c_count, sizeof(car));
+
+
+
+
+    free(this_state);
+    return new_state;
 }
 
 int main(int argc, char **argv)
