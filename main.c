@@ -217,12 +217,10 @@ int solve(car *this_state, int depth)
     return 0;
 }
 
+//todo
 car *prioritize(car *this_state)
 {
     car *new_state = calloc(c_count, sizeof(car));
-
-
-
 
     free(this_state);
     return new_state;
