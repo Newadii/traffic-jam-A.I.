@@ -3,7 +3,8 @@
 #include <strings.h>
 #include <memory.h>
 
-#define MAP_SIZE 6
+#define MAP_SIZE (6 +2)
+#define MAX_DEPTH 256
 
 int c_count;
 unsigned char special_index;
@@ -18,14 +19,18 @@ typedef struct CAR {
 
 typedef struct STEP
 {
-    car* car_;
+    int car_index;
+    car state;
     char direction; // -1 or +1
 } step;
+step *solution;
 
-typedef struct STATE {
-    car *cars;
-    step step_;
-} state;
+void delete_map(int **map)
+{
+    for (int i=0; i<MAP_SIZE; i++)
+        free(map[i]);
+    free(map);
+}
 
 car *load_cars(int argc, char **argv)
 {
@@ -66,7 +71,12 @@ int **make_map(car *cars)
     {
         map[i] = malloc(MAP_SIZE * sizeof(int));
         for (int k=0; k<MAP_SIZE; k++)
-            map[i][k] = -1;
+        {
+            if(i == 0 || i == MAP_SIZE-1 || k == 0 || k == MAP_SIZE-1)
+                map[i][k] = -2;
+            else
+                map[i][k] = -1;
+        }
     }
 
     for (int i=0; i < c_count; i++)
@@ -94,15 +104,16 @@ void print_map(int **map)
         {
             if (map[x][y] == -1)
                 printf("- ");
+            else if (map[x][y] == -2)
+                printf("+ ");
             else
                 printf("%c ", map[x][y] + 'a');
         }
         printf("\n");
     }
-    printf("*****\n");
 }
 
-void print_cars(car *cars)
+void print_state(car *cars)
 {
     printf("count: %d\n", c_count);
     for (int i=0; i<c_count; i++)
@@ -114,26 +125,107 @@ void print_cars(car *cars)
         printf("%d ", cars[i].y_pos);
         printf("%d\n", cars[i].orientation);
     }
-    printf("*****\n");
 }
 
-int solve(car *old_cars)
+int check_move_car(car *state, car *inspect_car, int direction)
 {
-    car *new_cars = malloc(c_count * sizeof(car));
-    memcpy(new_cars, old_cars, c_count * sizeof(car));
-    if (new_cars[special_index].x_pos == (MAP_SIZE-1) - new_cars[special_index].size)
+    int **map = make_map(state);
+    int to_x = 0, to_y = 0;
+    int *to_ptr;
+
+    if (inspect_car->orientation == 0)
+    {
+        to_ptr = &to_x;
+    }
+    else
+        to_ptr = &to_y;
+
+    if (direction > 0)
+        *to_ptr = inspect_car->size;
+    else
+        *to_ptr = -1;
+
+    if (map[inspect_car->x_pos + to_x][inspect_car->y_pos + to_y] == -1)
+    {
+        if (inspect_car->orientation == 0)
+            inspect_car->x_pos += direction;
+        else
+            inspect_car->y_pos += direction;
+        delete_map(map);
+        return 1;
+    }
+    delete_map(map);
+    return 0;
+}
+
+void move_car(car *inspect_car, int direction)
+{
+    if (inspect_car->orientation == 0)
+        inspect_car->x_pos += direction;
+    else
+        inspect_car->y_pos += direction;
+}
+
+int solve(car *this_state, int depth)
+{
+    if (this_state[special_index].x_pos == (MAP_SIZE-1) - this_state[special_index].size)
+        return 1;
+    if (depth < 1)
         return 0;
 
+    car *next_state = malloc(c_count * sizeof(car));
+    memcpy(next_state, this_state, c_count * sizeof(car));
+
+    for (int i=0; i < c_count; i++)
+    {
+        char direction[2] = {-1, 1};
+        for (int k=0; k<2; k++)
+        {
+            if (check_move_car(next_state, &next_state[i], direction[k]))
+            {
+                if (solve(next_state, depth - 1))
+                {
+                    solution[depth -1].car_index = i;
+                    solution[depth -1].state = this_state[i];
+                    solution[depth -1].direction = direction[k];
+                    free(next_state);
+                    return 1;
+                }
+                move_car(&next_state[i], direction[k] * (-1));
+            }
+        }
+    }
+    free(next_state);
+    return 0;
 }
 
 int main(int argc, char **argv)
 {
-    car *cars = load_cars(argc, argv);
-    print_cars(cars);
+    car *init_state = load_cars(argc, argv);
+    print_state(init_state);
 
-    int **map = make_map(cars);
+    int **map = make_map(init_state);
     print_map(map);
+    delete_map(map);
 
+    solution = malloc(MAX_DEPTH * sizeof(step));
+    int search_depth;
+    for (search_depth = 0; search_depth < MAX_DEPTH; search_depth++)
+    {
+        printf("depth: %d\n", search_depth);
+        if(solve(init_state, search_depth))
+        {
+            printf("found solution\n");
+            break;
+        }
+    }
+    int max_depth = --search_depth;
+    for(; search_depth >= 0; search_depth--)
+    {
+        printf("%d: %c %s %d\n", max_depth - search_depth +1, solution[search_depth].car_index + 'a', solution[search_depth].state.orientation == 0 ? "horizontal" : "vertical", solution[search_depth].direction);
+    }
 
+    free(init_state);
+    free(solution);
     return 0;
 }
